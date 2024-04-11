@@ -89,3 +89,23 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int 
+sys_getgpid(void)
+{
+    struct proc* culproc = myproc();
+
+    struct proc* pproc = culproc -> parent;
+    if (pproc == 0) return -1;
+    struct proc* gpproc = pproc -> parent;
+    if (gpproc == 0) return -1;
+
+    return gpproc -> pid;
+}
+
+int 
+sys_yield(void)
+{
+    yield();
+    return 0;
+}
