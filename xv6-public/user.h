@@ -26,6 +26,7 @@ int uptime(void);
 int myfunction(char*);
 int getgpid(void);
 void yield(void);
+void printpinfo(void);
 
 // ulib.c
 int stat(const char*, struct stat*);
