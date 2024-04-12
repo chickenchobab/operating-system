@@ -8,6 +8,7 @@ main(int argc, char *argv[])
 {   
     for (int i = 0; i < LOOP_NUM; i ++){
         printpinfo();
+        yield();
     }
     
     exit();
