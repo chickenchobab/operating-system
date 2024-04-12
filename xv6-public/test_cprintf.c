@@ -6,9 +6,8 @@
 int
 main(int argc, char *argv[])
 {   
-    printpinfo();
     for (int i = 0; i < LOOP_NUM; i ++){
-        yield();
+        printpinfo();
     }
     
     exit();

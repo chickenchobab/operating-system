@@ -200,7 +200,7 @@
 80102560 freerange
 8010624c vector125
 80106d30 allocuvm
-801058be trapret
+801058c3 trapret
 80106687 vector216
 8010601e vector63
 80105ed1 vector26
@@ -341,7 +341,7 @@
 80105f73 vector44
 80111680 lapic
 801060a5 vector78
-801058a6 alltraps
+801058ab alltraps
 80106483 vector173
 80106204 vector117
 801060c9 vector82

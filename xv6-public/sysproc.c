@@ -115,5 +115,6 @@ sys_printpinfo(void)
 {   
     struct proc* p = myproc();
     cprintf("ticks = %d, pid = %d, name = %s\n", ticks, p->pid, p->name);
+    yield();
     return 0;
 }
