@@ -24,3 +24,8 @@
 #define SYS_getgpid 23
 #define SYS_yield 24
 #define SYS_printpinfo 25
+#define SYS_getlev 26
+#define SYS_setpriority 27
+#define SYS_setmonopoly 28
+#define SYS_monopolize 29
+#define SYS_unmonopolize 30

@@ -93,33 +93,80 @@ sys_uptime(void)
 int 
 sys_getgpid(void)
 {
-    struct proc* culproc = myproc();
+  struct proc* culproc = myproc();
 
-    struct proc* pproc = culproc -> parent;
-    if (pproc == 0) return -1;
-    struct proc* gpproc = pproc -> parent;
-    if (gpproc == 0) return -1;
+  struct proc* pproc = culproc -> parent;
+  if (pproc == 0) return -1;
+  struct proc* gpproc = pproc -> parent;
+  if (gpproc == 0) return -1;
 
-    return gpproc -> pid;
-}
-
-int 
-sys_yield(void)
-{
-    yield();
-    return 0;
+  return gpproc -> pid;
 }
 
 int
 sys_printpinfo(void)
 {   
-    struct proc* p = myproc();
-    uint xticks;
+  struct proc* p = myproc();
+  uint xticks;
 
-    acquire(&tickslock);
-    xticks = ticks;
-    release(&tickslock);
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
 
-    cprintf("ticks = %d, pid = %d, name = %s\n", xticks, p->pid, p->name);
-    return 0;
+  cprintf("ticks = %d, pid = %d, name = %s\n", xticks, p->pid, p->name);
+  return 0;
+}
+
+
+int 
+sys_yield(void)
+{
+  yield();
+  return 0;
+}
+
+int
+sys_getlev(void)
+{
+  return getlev();
+}
+
+int 
+sys_setpriority(void)
+{  
+  int pid, priority;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argint(1, &priority) < 0)
+    return -1;
+
+  return setpriority(pid, priority);
+}
+
+int
+sys_setmonopoly(void)
+{
+  int pid, password;
+
+  if(argint(0, &pid) < 0)
+    return -1;
+  if(argint(1, &password) < 0)
+    return -1;
+
+  return setmonopoly(pid, password);
+}
+
+int 
+sys_monopolize(void)
+{ 
+  monopolize();
+  return 0;
+}
+
+int
+sys_unmonopolize(void)
+{
+  unmonopolize();
+  return 0;
 }
