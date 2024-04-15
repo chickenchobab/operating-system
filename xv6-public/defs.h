@@ -120,12 +120,15 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            schedule(struct proc*);
+void            proctimer(void);
 void            prboost(void);
 int             getlev(void);
 int             setpriority(int, int);
 int             setmonopoly(int, int);
 void            monopolize(void);
 void            unmonopolize(void);
+
 
 // swtch.S
 void            swtch(struct context**, struct context*);

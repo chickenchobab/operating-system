@@ -7,6 +7,109 @@
 #include "proc.h"
 #include "spinlock.h"
 
+void swap(struct proc **p1, struct proc **p2)
+{
+  struct proc *tmp;
+  tmp = *p1;
+  *p1 = *p2;
+  *p2 = tmp;
+}
+
+// A structure and variables of queue.
+typedef struct {
+  struct proc *heap[NPROC + 1];
+  int size;
+  int level;
+  struct proc *front;
+}queue;
+
+queue mlfq[4];
+queue moq;
+int monopoly = 0;
+
+// Initial setting of queues in userinit().
+void qinit()
+{
+  for (int i = 0; i <= 3; i ++){
+    mlfq[i].size = 0;
+    mlfq[i].level = i;
+  }
+  moq.size = 0;
+  moq.level = 99;
+}
+
+// Print the elements in a queue.
+void printq(queue *q)
+{
+  struct proc *p;
+  cprintf("queue %d start\n", q->level);
+  for (int i = 1; i <= q->size; i ++){
+    p = q->heap[i];
+    cprintf("pid = %d, name = %s, state = %d\n", p->pid, p->name, p->state);
+  }
+  cprintf("end\n\n");
+}
+
+void enqueue(queue *q, struct proc *p)
+{
+	int i;
+
+  if (q->size == NPROC)
+    return;
+
+	q->size = q->size + 1;
+	i = q->size;
+
+  if(q->level == 3){
+    while ((i != 1) && ((p->priority) > (q->heap[i / 2]->priority))){
+      q->heap[i] = q->heap[i / 2];
+      i /= 2;
+    }
+  }
+  
+	q->heap[i] = p;
+  q->front = q->heap[1];
+}
+
+void heapify(queue *q, int i)
+{
+  int front = i;
+  int left = i * 2;
+  int right = i * 2 + 1;
+
+  if (left <= q->size && q->heap[left]->priority > q->heap[front]->priority)
+    front = left;
+  if (right <= q->size && q->heap[right]->priority > q->heap[front]->priority)
+    front = right;
+
+  if (front != i){
+    swap(&(q->heap[front]), &(q->heap[i]));
+    heapify(q, front);
+  }
+}
+
+void dequeue(queue *q)
+{ 
+  if (q->size == 0) 
+    return;
+
+  if (q->level == 3){
+    q->heap[1] = q->heap[q->size];
+    q->size = q->size - 1;
+    heapify(q, 1);
+  }
+  else {
+    q->size = q->size - 1;
+    for (int i = 1; i <= q->size; i ++){
+      q->heap[i] = q->heap[i + 1];
+    }
+  }
+  
+  q->front = q->heap[1];
+}
+
+// proc.c
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -19,6 +122,9 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+static void yield1(void);
+static void yield2(void);
+static void unmonopolize1(void);
 
 void
 pinit(void)
@@ -88,6 +194,9 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->level = -1;
+  p->priority = 0;
+  p->tq = 0;
 
   release(&ptable.lock);
 
@@ -124,6 +233,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
+  qinit();
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -149,6 +259,9 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  p->level = 0;
+  p->tq = 2 * p->level + 2;
+  enqueue(&mlfq[0], p);
 
   release(&ptable.lock);
 }
@@ -215,6 +328,9 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  np->level = 0;
+  np->tq = 2 * np->level + 2;
+  enqueue(&mlfq[0], np);
 
   release(&ptable.lock);
 
@@ -311,6 +427,38 @@ wait(void)
   }
 }
 
+// Finds a process to run
+// The ptable lock must be held.
+void
+findproc(queue *q)
+{
+  struct proc *p;
+  int cnt;
+  
+  cnt = q->size;
+
+  while(q->size && cnt--){
+
+    p = q->front;
+    // if (q->level == 99){
+    //   p->state == RUNNABLE;
+    // }
+    if (p->state == RUNNABLE && p->level == q->level) 
+      break;
+    
+    dequeue(q);
+    if (p->state == SLEEPING){
+      if(p->level == q->level){
+        enqueue(q, p);
+      }
+    }
+    else{
+      if(p->level == q->level)
+        p->level = -1;
+    }
+  }
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -324,35 +472,67 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+
   c->proc = 0;
   
   for(;;){
     // Enable interrupts on this processor.
     sti();
 
-    // Loop over process table looking for process to run.
+    // Loop over every queue looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    // Choose a process in moq.
+    if(monopoly){
+      findproc(&moq);
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
+      if (moq.size){
+        p = moq.front;
+        if (p->state == RUNNABLE){
+          schedule(p);
+        }
+      }
+      if(!moq.size)
+        unmonopolize1();
     }
-    release(&ptable.lock);
 
+    // Choose a process in mlfq.
+    else{
+      for(int qlv = 0; qlv <= 3; qlv ++){  
+        findproc(&mlfq[qlv]);
+        
+        if (mlfq[qlv].size){
+          p = mlfq[qlv].front;
+          if (p->state == RUNNABLE)
+            schedule(p);
+        }
+      }
+    }
+
+    // One loop for scheduling finished.
+    release(&ptable.lock);
   }
+}
+
+// Give chosen process CPU and take it back
+// when process is done running.
+void
+schedule(struct proc *p)
+{ 
+  struct cpu *c = mycpu();
+  // Switch to chosen process.  It is the process's job
+  // to release ptable.lock and then reacquire it
+  // before jumping back to us.
+  c->proc = p;
+  switchuvm(p);
+  p->state = RUNNING;
+
+  swtch(&(c->scheduler), p->context);
+  switchkvm();
+
+  // Process is done running for now.
+  // It should have changed its p->state before coming back.
+  c->proc = 0;
 }
 
 // Enter scheduler.  Must hold only ptable.lock
@@ -381,13 +561,58 @@ sched(void)
   mycpu()->intena = intena;
 }
 
+// Give up the cpu moving into another queue.
+// The ptable lock must be held.
+static void
+yield1(void)
+{ 
+  struct proc *p;
+  int level;
+
+  p = myproc();
+  level = p->level;
+
+  if (level == 0){
+    if ((p->pid) % 2) p->level = 1;
+    else p->level = 2;
+  }
+  else if (level == 1 || level == 2){
+    p->level = 3;
+  }
+  else { 
+    if (p->priority > 0)
+      p->priority = p->priority - 1;
+  }
+  enqueue(&mlfq[p->level], p);
+  p->tq = 2 * (p->level) + 2;
+  p->state = RUNNABLE;
+
+  sched();
+}
+
+// Give up the cpu staying in the queue.
+// The ptable lock must be held.
+static void
+yield2(void)
+{ 
+  struct proc *p;
+  p = myproc();
+
+  p->state = RUNNABLE;
+  sched();
+}
+
 // Give up the CPU for one scheduling round.
 void
 yield(void)
-{
+{ 
+  struct proc *p;
   acquire(&ptable.lock);  //DOC: yieldlock
-  myproc()->state = RUNNABLE;
-  sched();
+  p = myproc();
+  if (p->level != 99)
+    yield1();
+  else
+    yield2();
   release(&ptable.lock);
 }
 
@@ -438,7 +663,6 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
-
   sched();
 
   // Tidy up.
@@ -531,4 +755,164 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// Calculate time quantum of current process
+// and decide whether to yield or not.
+void proctimer()
+{ 
+  struct proc *p;
+
+  acquire(&ptable.lock);
+  p = myproc();
+  // cprintf("pid=%d, name=%s\n", p->pid, p->name);
+
+  if(monopoly){
+    if(p->level != 99){
+      yield2();
+    }
+  }
+  else{
+    if(p->level != 99){
+      p->tq = p->tq - 1;
+      if(p->tq == 0)
+        yield1();
+    }
+    else{
+      yield2(); 
+    }
+  }
+  release(&ptable.lock);
+}
+
+// Reset all processes.
+void
+prboost()
+{ 
+  struct proc *p;
+
+  acquire(&ptable.lock);
+
+  if (monopoly){
+    release(&ptable.lock);
+    return;
+  }
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->level == -1 || p->level == 99)
+      continue;
+    if(p->level){
+      p->level = 0;
+      p->priority = 0;
+      enqueue(&mlfq[0], p);
+    }
+    p->tq = 2 * p->level + 2;
+  }
+  
+  for (int qlv = 1; qlv <= 3; qlv ++){
+    for (int idx = 1; idx <= mlfq[qlv].size; idx ++)
+      mlfq[qlv].heap[idx] = 0;
+    mlfq[qlv].size = 0;
+  }
+
+  release(&ptable.lock);
+}
+
+// Functions for system call used in mlfq_test.
+
+int
+getlev()
+{ 
+  int level;
+
+  acquire(&ptable.lock);
+  level = myproc()->level;
+  release(&ptable.lock);
+
+  return level;
+}
+
+int
+setpriority(int pid, int priority)
+{ 
+  struct proc *p;
+
+  if (priority < 0 || priority > 10) return -2;
+
+  acquire(&ptable.lock);
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if (p->pid == pid) {
+      p->priority = priority;
+      release(&ptable.lock);
+      return 0;
+    }
+  }
+
+  release(&ptable.lock);
+  return -1;
+}
+
+int
+setmonopoly(int pid, int password)
+{ 
+  struct proc *p;
+  int studentid = 2021064720;
+
+  acquire(&ptable.lock);
+
+  if (pid == myproc()->pid){
+    release(&ptable.lock);
+    return -4;
+  } 
+  if (password != studentid){
+    release(&ptable.lock);
+    return -2;
+  }
+    
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if (p->pid != pid) 
+      continue;
+
+    if (p->level == 99){
+      release(&ptable.lock);
+      return -3;
+    }
+
+    p->level = 99;
+    p->priority = 0;
+    enqueue(&moq, p);
+    release(&ptable.lock);
+    return moq.size;
+  }
+
+  release(&ptable.lock);
+  return -1;
+}
+
+void
+monopolize()
+{
+  acquire(&ptable.lock);
+  monopoly = 1;
+  release(&ptable.lock);
+}
+
+
+static void
+unmonopolize1()
+{ 
+  monopoly = 0;
+
+  acquire(&tickslock);
+  ticks = 0;
+  release(&tickslock);
+}
+
+void
+unmonopolize()
+{ 
+  acquire(&ptable.lock);
+  unmonopolize1();
+  acquire(&ptable.lock);
 }
