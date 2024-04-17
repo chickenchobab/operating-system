@@ -197,6 +197,7 @@ found:
   p->level = -1;
   p->priority = 0;
   p->tq = 0;
+  p->yielded = 0;
 
   release(&ptable.lock);
 
@@ -440,22 +441,22 @@ findproc(queue *q)
   while(q->size && cnt--){
 
     p = q->front;
-    // if (q->level == 99){
-    //   p->state == RUNNABLE;
-    // }
-    if (p->state == RUNNABLE && p->level == q->level) 
+    if (p->state == RUNNABLE && p->level == q->level && p->yielded == 0) 
       break;
     
     dequeue(q);
-    if (p->state == SLEEPING){
-      if(p->level == q->level){
+
+    if(p->level != q->level)
+      continue;
+    if(p->yielded){
+      p->yielded = p->yielded - 1;
+      continue;
+    }
+
+    if (p->state == SLEEPING)
         enqueue(q, p);
-      }
-    }
-    else{
-      if(p->level == q->level)
+    else
         p->level = -1;
-    }
   }
 }
 
@@ -575,15 +576,17 @@ yield1(void)
   if (level == 0){
     if ((p->pid) % 2) p->level = 1;
     else p->level = 2;
+    enqueue(&mlfq[p->level], p);
   }
   else if (level == 1 || level == 2){
     p->level = 3;
+    enqueue(&mlfq[p->level], p);
   }
   else { 
     if (p->priority > 0)
       p->priority = p->priority - 1;
   }
-  enqueue(&mlfq[p->level], p);
+
   p->tq = 2 * (p->level) + 2;
   p->state = RUNNABLE;
 
@@ -599,17 +602,20 @@ yield2(void)
   p = myproc();
 
   p->state = RUNNABLE;
+  p->yielded = p->yielded + 1;
+  enqueue(&mlfq[p->level], p);
   sched();
 }
 
 // Give up the CPU for one scheduling round.
+// It is used for system call.
 void
 yield(void)
 { 
   struct proc *p;
   acquire(&ptable.lock);  //DOC: yieldlock
   p = myproc();
-  if (p->level != 99)
+  if (p->level != 99 && p->tq == 0)
     yield1();
   else
     yield2();
@@ -765,7 +771,6 @@ void proctimer()
 
   acquire(&ptable.lock);
   p = myproc();
-  // cprintf("pid=%d, name=%s\n", p->pid, p->name);
 
   if(monopoly){
     if(p->level != 99){

@@ -52,6 +52,7 @@ struct proc {
   int level;                   // (+) Queue level
   int priority;                // (+) Process priority
   int tq;                      // (+) Process time quantum
+  int yielded;                 // (+) Check if process has yielded;
 };
 
 // Process memory is laid out contiguously, low addresses first:
