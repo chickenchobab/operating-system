@@ -439,7 +439,6 @@ findproc(queue *q)
   cnt = q->size;
 
   while(q->size && cnt--){
-
     p = q->front;
     if (p->state == RUNNABLE && p->level == q->level && p->yielded == 0) 
       break;
@@ -453,8 +452,10 @@ findproc(queue *q)
       continue;
     }
 
-    if (p->state == SLEEPING)
+    if (p->state == SLEEPING){
+        // cprintf("process %d(%s) delayed : state %d\n", p->pid, p->name, p->state);
         enqueue(q, p);
+    }
     else
         p->level = -1;
   }
@@ -585,6 +586,7 @@ yield1(void)
   else { 
     if (p->priority > 0)
       p->priority = p->priority - 1;
+    heapify(&mlfq[level], 1);
   }
 
   p->tq = 2 * (p->level) + 2;
@@ -771,6 +773,12 @@ void proctimer()
 
   acquire(&ptable.lock);
   p = myproc();
+  // cprintf("curproc : %d(%s)\n", p->pid, p->name);
+  // printq(&mlfq[0]);
+  // printq(&mlfq[1]);
+  // printq(&mlfq[2]);
+  // printq(&mlfq[3]);
+  
 
   if(monopoly){
     if(p->level != 99){
