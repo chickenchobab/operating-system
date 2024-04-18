@@ -453,7 +453,11 @@ findproc(queue *q)
     }
 
     if (p->state == SLEEPING){
-        // cprintf("process %d(%s) delayed : state %d\n", p->pid, p->name, p->state);
+        // if(p->level == 99){
+        //   cprintf("process %d(%s) delayed : sleeping\n", p->pid, p->name);
+        //   if(p->chan == &ticks)
+        //     cprintf("user slept me\n");
+        // }
         enqueue(q, p);
     }
     else
@@ -474,6 +478,7 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+  // int found;
 
   c->proc = 0;
   
@@ -483,6 +488,8 @@ scheduler(void)
 
     // Loop over every queue looking for process to run.
     acquire(&ptable.lock);
+
+    // found = 0;
 
     // Choose a process in moq.
     if(monopoly){
@@ -505,11 +512,19 @@ scheduler(void)
         
         if (mlfq[qlv].size){
           p = mlfq[qlv].front;
-          if (p->state == RUNNABLE)
+          if (p->state == RUNNABLE){
+            // cprintf("%d(%s) scheduled\n", p->pid, p->name);
             schedule(p);
+            // found = 1;
+          }
         }
       }
     }
+
+    // if (found)
+    //   cprintf("process found\n");
+    // else
+    //   cprintf("no process\n");
 
     // One loop for scheduling finished.
     release(&ptable.lock);
@@ -668,6 +683,7 @@ sleep(void *chan, struct spinlock *lk)
     acquire(&ptable.lock);  //DOC: sleeplock1
     release(lk);
   }
+
   // Go to sleep.
   p->chan = chan;
   p->state = SLEEPING;
@@ -773,27 +789,17 @@ void proctimer()
 
   acquire(&ptable.lock);
   p = myproc();
-  // cprintf("curproc : %d(%s)\n", p->pid, p->name);
-  // printq(&mlfq[0]);
-  // printq(&mlfq[1]);
-  // printq(&mlfq[2]);
-  // printq(&mlfq[3]);
-  
 
-  if(monopoly){
-    if(p->level != 99){
+  if (p->level == 99){
+    if (!monopoly)
       yield2();
-    }
   }
   else{
-    if(p->level != 99){
-      p->tq = p->tq - 1;
-      if(p->tq == 0)
-        yield1();
-    }
-    else{
-      yield2(); 
-    }
+    p->tq = p->tq - 1;
+    if(p->tq == 0)
+      yield1();
+    else if(monopoly)
+      yield2();
   }
   release(&ptable.lock);
 }
@@ -895,6 +901,7 @@ setmonopoly(int pid, int password)
     p->level = 99;
     p->priority = 0;
     enqueue(&moq, p);
+    findproc(&moq);  // sort the queue.
     release(&ptable.lock);
     return moq.size;
   }
