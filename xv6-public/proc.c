@@ -452,14 +452,8 @@ findproc(queue *q)
       continue;
     }
 
-    if (p->state == SLEEPING){
-        // if(p->level == 99){
-        //   cprintf("process %d(%s) delayed : sleeping\n", p->pid, p->name);
-        //   if(p->chan == &ticks)
-        //     cprintf("user slept me\n");
-        // }
+    if (p->state == SLEEPING)
         enqueue(q, p);
-    }
     else
         p->level = -1;
   }
@@ -478,7 +472,6 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-  // int found;
 
   c->proc = 0;
   
@@ -488,8 +481,6 @@ scheduler(void)
 
     // Loop over every queue looking for process to run.
     acquire(&ptable.lock);
-
-    // found = 0;
 
     // Choose a process in moq.
     if(monopoly){
@@ -512,19 +503,11 @@ scheduler(void)
         
         if (mlfq[qlv].size){
           p = mlfq[qlv].front;
-          if (p->state == RUNNABLE){
-            // cprintf("%d(%s) scheduled\n", p->pid, p->name);
+          if (p->state == RUNNABLE)
             schedule(p);
-            // found = 1;
-          }
         }
       }
     }
-
-    // if (found)
-    //   cprintf("process found\n");
-    // else
-    //   cprintf("no process\n");
 
     // One loop for scheduling finished.
     release(&ptable.lock);
@@ -901,7 +884,6 @@ setmonopoly(int pid, int password)
     p->level = 99;
     p->priority = 0;
     enqueue(&moq, p);
-    findproc(&moq);  // sort the queue.
     release(&ptable.lock);
     return moq.size;
   }
