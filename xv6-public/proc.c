@@ -15,6 +15,8 @@ void swap(struct proc **p1, struct proc **p2)
   *p2 = tmp;
 }
 
+// queue start
+
 // A structure and variables of queue.
 typedef struct {
   struct proc *heap[NPROC + 1];
@@ -38,8 +40,9 @@ void qinit()
   moq.level = 99;
 }
 
+
 // Print the elements in a queue.
-void printq(queue *q)
+void qprint(queue *q)
 {
   struct proc *p;
   cprintf("queue %d start\n", q->level);
@@ -107,6 +110,10 @@ void dequeue(queue *q)
   
   q->front = q->heap[1];
 }
+
+
+
+// queue end
 
 // proc.c
 
@@ -459,6 +466,7 @@ findproc(queue *q)
   }
 }
 
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -497,14 +505,15 @@ scheduler(void)
     }
 
     // Choose a process in mlfq.
-    else{
-      for(int qlv = 0; qlv <= 3; qlv ++){  
-        findproc(&mlfq[qlv]);
-        
-        if (mlfq[qlv].size){
-          p = mlfq[qlv].front;
-          if (p->state == RUNNABLE)
-            schedule(p);
+    for(int qlv = 0; qlv <= 3; qlv ++){ 
+      if (monopoly) break;
+      findproc(&mlfq[qlv]);
+      
+      if (mlfq[qlv].size){
+        p = mlfq[qlv].front;
+        if (p->state == RUNNABLE){
+          schedule(p);
+          qlv = -1;
         }
       }
     }
@@ -603,7 +612,10 @@ yield2(void)
 
   p->state = RUNNABLE;
   p->yielded = p->yielded + 1;
-  enqueue(&mlfq[p->level], p);
+  if (p->level == 99)
+    enqueue(&moq, p);
+  else
+    enqueue(&mlfq[p->level], p);
   sched();
 }
 
@@ -774,15 +786,13 @@ void proctimer()
   p = myproc();
 
   if (p->level == 99){
-    if (!monopoly)
-      yield2();
+    release(&ptable.lock);
+    return;
   }
   else{
     p->tq = p->tq - 1;
     if(p->tq == 0)
       yield1();
-    else if(monopoly)
-      yield2();
   }
   release(&ptable.lock);
 }
@@ -797,7 +807,7 @@ prboost()
 
   if (monopoly){
     release(&ptable.lock);
-    return;
+    return; 
   }
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -846,11 +856,25 @@ setpriority(int pid, int priority)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if (p->pid == pid) {
       p->priority = priority;
+
+      if (p->level == 3){
+        for(int i = 1; i <= mlfq[3].size; i ++){
+          if(mlfq[3].heap[i] == p){
+            mlfq[3].heap[i] = 0;
+            for (int j = i; j < mlfq[3].size; j ++){
+              mlfq[3].heap[j] = mlfq[3].heap[j + 1];
+            }
+            break;
+          }
+        }
+        enqueue(&mlfq[3], p);
+      }
+
       release(&ptable.lock);
       return 0;
     }
   }
-
+  
   release(&ptable.lock);
   return -1;
 }
@@ -895,8 +919,18 @@ setmonopoly(int pid, int password)
 void
 monopolize()
 {
+  struct proc* p;
   acquire(&ptable.lock);
+  p = myproc();
+
+  if(p->level == 99){
+    release(&ptable.lock);
+    return;
+  }
   monopoly = 1;
+  if(p->tq == 0) yield1();
+  else yield2();
+  
   release(&ptable.lock);
 }
 
@@ -914,7 +948,16 @@ unmonopolize1()
 void
 unmonopolize()
 { 
+  struct proc * p;
   acquire(&ptable.lock);
+
+  p = myproc();
+
+  if(p->level != 99){
+    release(&ptable.lock);
+    return;
+  }
   unmonopolize1();
-  acquire(&ptable.lock);
+  yield2();
+  release(&ptable.lock);
 }
