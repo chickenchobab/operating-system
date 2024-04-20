@@ -859,22 +859,20 @@ setpriority(int pid, int priority)
 
       if (p->level == 3){
         for(int i = 1; i <= mlfq[3].size; i ++){
-          if(mlfq[3].heap[i] == p){
-            mlfq[3].heap[i] = 0;
-            for (int j = i; j < mlfq[3].size; j ++){
-              mlfq[3].heap[j] = mlfq[3].heap[j + 1];
-            }
-            break;
+          if(mlfq[3].heap[i] != p) continue;
+          mlfq[3].heap[i] = 0;
+          for (int j = i; j < mlfq[3].size; j ++){
+            mlfq[3].heap[j] = mlfq[3].heap[j + 1];
           }
         }
-        enqueue(&mlfq[3], p);
+        for(int cnt = 0; cnt <= p->yielded; cnt ++)
+          enqueue(&mlfq[3], p);
       }
 
       release(&ptable.lock);
       return 0;
     }
   }
-  
   release(&ptable.lock);
   return -1;
 }
