@@ -882,16 +882,15 @@ setmonopoly(int pid, int password)
 { 
   struct proc *p;
   int studentid = 2021064720;
+  if (password != studentid){
+    return -2;
+  }
 
   acquire(&ptable.lock);
 
   if (pid == myproc()->pid){
     release(&ptable.lock);
     return -4;
-  } 
-  if (password != studentid){
-    release(&ptable.lock);
-    return -2;
   }
     
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -902,9 +901,7 @@ setmonopoly(int pid, int password)
       release(&ptable.lock);
       return -3;
     }
-
     p->level = 99;
-    p->priority = 0;
     enqueue(&moq, p);
     release(&ptable.lock);
     return moq.size;

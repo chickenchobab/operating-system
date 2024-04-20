@@ -139,7 +139,7 @@ sys_setpriority(void)
   if(argint(0, &pid) < 0)
     return -1;
   if(argint(1, &priority) < 0)
-    return -1;
+    return -2;
 
   return setpriority(pid, priority);
 }
@@ -152,7 +152,7 @@ sys_setmonopoly(void)
   if(argint(0, &pid) < 0)
     return -1;
   if(argint(1, &password) < 0)
-    return -1;
+    return -2;
 
   return setmonopoly(pid, password);
 }
