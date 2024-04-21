@@ -20,6 +20,7 @@ void swap(struct proc **p1, struct proc **p2)
 // A structure and variables of queue.
 typedef struct {
   struct proc *heap[NPROC + 1];
+  int start, end;
   int size;
   int level;
   struct proc *front;
@@ -33,10 +34,10 @@ int monopoly = 0;
 void qinit()
 {
   for (int i = 0; i <= 3; i ++){
-    mlfq[i].size = 0;
+    mlfq[i].size = mlfq[i].start = mlfq[i].end = 0;
     mlfq[i].level = i;
   }
-  moq.size = 0;
+  moq.size = moq.start = moq.end = 0;
   moq.level = 99;
 }
 
@@ -47,7 +48,8 @@ void qprint(queue *q)
   struct proc *p;
   cprintf("queue %d start\n", q->level);
   for (int i = 1; i <= q->size; i ++){
-    p = q->heap[i];
+    if (q->level == 3) p = q->heap[i];
+    else p = q->heap[(q->start + i - 1) % (NPROC + 1)];
     cprintf("pid = %d, name = %s, state = %d\n", p->pid, p->name, p->state);
   }
   cprintf("end\n\n");
@@ -56,22 +58,25 @@ void qprint(queue *q)
 void enqueue(queue *q, struct proc *p)
 {
 	int i;
-
   if (q->size == NPROC)
     return;
 
 	q->size = q->size + 1;
-	i = q->size;
 
   if(q->level == 3){
+    i = q->size;
     while ((i != 1) && ((p->priority) > (q->heap[i / 2]->priority))){
       q->heap[i] = q->heap[i / 2];
       i /= 2;
     }
+    q->heap[i] = p;
+    q->front = q->heap[1];
   }
-  
-	q->heap[i] = p;
-  q->front = q->heap[1];
+  else {
+    q->heap[q->end] = p;
+    q->end = (q->end + 1) % (NPROC + 1);
+    q->front = q->heap[q->start];
+  }
 }
 
 void heapify(queue *q, int i)
@@ -98,17 +103,14 @@ void dequeue(queue *q)
 
   if (q->level == 3){
     q->heap[1] = q->heap[q->size];
-    q->size = q->size - 1;
     heapify(q, 1);
+    q->front = q->heap[1];
   }
   else {
-    q->size = q->size - 1;
-    for (int i = 1; i <= q->size; i ++){
-      q->heap[i] = q->heap[i + 1];
-    }
+    q->start = (q->start + 1) % (NPROC + 1);
+    q->front = q->heap[q->start];
   }
-  
-  q->front = q->heap[1];
+  q->size = q->size - 1;
 }
 
 
@@ -240,8 +242,8 @@ userinit(void)
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
-  p = allocproc();
   qinit();
+  p = allocproc();
   
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
@@ -442,7 +444,6 @@ findproc(queue *q)
 {
   struct proc *p;
   int cnt;
-  
   cnt = q->size;
 
   while(q->size && cnt--){
@@ -460,9 +461,9 @@ findproc(queue *q)
     }
 
     if (p->state == SLEEPING)
-        enqueue(q, p);
+      enqueue(q, p);
     else
-        p->level = -1;
+      p->level = -1;
   }
 }
 
@@ -803,7 +804,6 @@ void
 prboost()
 { 
   struct proc *p;
-
   acquire(&ptable.lock);
 
   if (monopoly){
@@ -823,11 +823,10 @@ prboost()
   }
   
   for (int qlv = 1; qlv <= 3; qlv ++){
-    for (int idx = 1; idx <= mlfq[qlv].size; idx ++)
+    mlfq[qlv].size = mlfq[qlv].start = mlfq[qlv].end = 0;
+    for (int idx = 0; idx <= NPROC; idx ++)
       mlfq[qlv].heap[idx] = 0;
-    mlfq[qlv].size = 0;
   }
-
   release(&ptable.lock);
 }
 
