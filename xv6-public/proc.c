@@ -848,30 +848,28 @@ int
 setpriority(int pid, int priority)
 { 
   struct proc *p;
-
   if (priority < 0 || priority > 10) return -2;
 
   acquire(&ptable.lock);
-  
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if (p->pid == pid) {
-      p->priority = priority;
+    if (p->pid != pid) continue;
 
-      if (p->level == 3){
-        for(int i = 1; i <= mlfq[3].size; i ++){
-          if(mlfq[3].heap[i] != p) continue;
-          mlfq[3].heap[i] = 0;
-          for (int j = i; j < mlfq[3].size; j ++){
-            mlfq[3].heap[j] = mlfq[3].heap[j + 1];
-          }
-        }
-        for(int cnt = 0; cnt <= p->yielded; cnt ++)
-          enqueue(&mlfq[3], p);
+    if (p->level == 3){
+      int cnt = p->yielded + 1;
+      p->priority = 11;
+      while(cnt){
+        if(mlfq[3].front == p) cnt --;
+        else enqueue(&mlfq[3], mlfq[3].front);
+        dequeue(&mlfq[3]);
       }
-
-      release(&ptable.lock);
-      return 0;
+      p->priority = priority;
+      p->yielded = 0;
+      enqueue(&mlfq[3], p);
     }
+
+    p->priority = priority;
+    release(&ptable.lock);
+    return 0;
   }
   release(&ptable.lock);
   return -1;
