@@ -591,9 +591,10 @@ yield1(void)
     enqueue(&mlfq[p->level], p);
   }
   else { 
-    if (p->priority > 0)
+    if (p->priority > 0){
       p->priority = p->priority - 1;
-    heapify(&mlfq[level], 1);
+      heapify(&mlfq[level], 1);
+    }
   }
 
   p->tq = 2 * (p->level) + 2;
