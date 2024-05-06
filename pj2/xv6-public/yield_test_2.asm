@@ -1,5 +1,5 @@
 
-_cprintf_test:     file format elf32-i386
+_yield_test_2:     file format elf32-i386
 
 
 Disassembly of section .text:
