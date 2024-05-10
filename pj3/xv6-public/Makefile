@@ -181,6 +181,11 @@ UPROGS=\
 	_usertests\
 	_wc\
 	_zombie\
+	_hello_thread\
+	_thread_exec\
+	_thread_exit\
+	_thread_test\
+	_thread_kill\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -253,6 +258,7 @@ EXTRA=\
 	printf.c umalloc.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
+	hello_thread.c thread_exec.c thread_exit.c thread_test.c thread_kill.c\
 
 dist:
 	rm -rf dist
