@@ -416,6 +416,7 @@ sys_exec(void)
     if(fetchstr(uarg, &argv[i]) < 0)
       return -1;
   }
+  merge(myproc());
   return exec(path, argv);
 }
 

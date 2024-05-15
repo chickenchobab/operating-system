@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
   printf(1, "Parent waiting for children...\n");
   join_all(2);
   if (status != 1) {
-    printf(1, "Join returned before thread exit, or the address space is not properly shared\n");
+    printf(1, "%d : Join returned before thread exit, or the address space is not properly shared\n", status);
     failed();
   }
   printf(1, "Test 1 passed\n\n");

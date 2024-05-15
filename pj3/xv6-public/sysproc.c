@@ -16,7 +16,11 @@ sys_fork(void)
 int
 sys_exit(void)
 {
-  exit();
+  merge(myproc());
+  if (myproc()->created)
+    thread_exit(0);
+  else
+    exit();
   return 0;  // not reached
 }
 
@@ -88,4 +92,42 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int 
+sys_thread_create(void)
+{
+  char *thread;
+  char *start_routine;
+  char *arg;
+
+  if (argptr(0, &thread, sizeof(thread_t*)) < 0) 
+    return -1;
+  if (argptr(1, &start_routine, sizeof(void*(*)(void*))) < 0)
+    return -1;
+  if (argptr(2, &arg, sizeof(void*)) < 0) 
+    return -1;
+  return thread_create((thread_t*)thread, (void*(*)(void*))start_routine, (void*)arg);
+}
+
+int 
+sys_thread_exit(void)
+{
+  char *retval;
+  if (argptr(0, &retval, sizeof(void*)) < 0)
+    return -1;
+  thread_exit((void*)retval);
+  return 0;
+}
+
+int
+sys_thread_join(void)
+{
+  int thread;
+  char *retval;
+  if (argint(0, &thread) < 0)
+    return -1;
+  if (argptr(1, &retval, sizeof(void**)) < 0)
+    return -1;
+  return thread_join((thread_t)thread, (void**)retval);
 }

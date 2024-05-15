@@ -19,7 +19,7 @@ void *thread_main(void *arg)
     sleep(200);
   }
   
-  printf(1, "This code shouldn't be executed!!\n");
+  printf(1, "Thread %d : This code shouldn't be executed!!\n", val);
   exit();
   return 0;
 }
