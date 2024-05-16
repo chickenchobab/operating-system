@@ -17,10 +17,10 @@ int
 sys_exit(void)
 {
   merge(myproc());
-  if (myproc()->created)
-    thread_exit(0);
-  else
+  if (myproc()->tid <= 1)
     exit();
+  else
+    thread_exit(0);
   return 0;  // not reached
 }
 
@@ -54,7 +54,7 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+  addr = myproc()->mthread->sz;
   if(growproc(n) < 0)
     return -1;
   return addr;

@@ -49,11 +49,10 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int tno;                     // The number of threads
   int tid;                     // Thread ID
-  int created;                 // If it is thread made by main process
-  struct proc *mainproc;       // process that has created this thread
+  struct proc *mthread;        // process that has created this thread
   void *retval;                // Return value from thread to main process
-  pde_t *uspgdir;              // Page table for user stack
 };
 
 // Process memory is laid out contiguously, low addresses first:

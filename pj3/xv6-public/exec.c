@@ -101,7 +101,8 @@ exec(char *path, char **argv)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
   switchuvm(curproc);
-  freevm(oldpgdir);
+  if (curproc->tid == 0)
+    freevm(oldpgdir);
   return 0;
 
  bad:
