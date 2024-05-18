@@ -17,7 +17,7 @@ int
 sys_exit(void)
 {
   merge(myproc());
-  if (myproc()->tid <= 1)
+  if (myproc()->tid == 1)
     exit();
   else
     thread_exit(0);

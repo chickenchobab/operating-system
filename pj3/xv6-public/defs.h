@@ -123,6 +123,7 @@ void            yield(void);
 int             thread_create(thread_t*, void*(*)(void *), void *);
 void            thread_exit(void*);
 int             thread_join(thread_t, void**);
+int             thread_join_all(void);
 void            merge(struct proc*);
 
 // swtch.S

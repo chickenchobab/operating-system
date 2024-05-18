@@ -19,7 +19,6 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
-static void merge1(struct proc *curproc);
 
 void
 pinit(void)
@@ -90,12 +89,15 @@ found:
   p->state = EMBRYO;
   p->mthread = p;
   p->tno = 1;
+  p->nexttid = 1;
   if (creator){
     p->pid = creator->pid;
-    p->tid = creator->tno + 1;
+    p->tid = (creator->nexttid)++;
   }
-  else
+  else{
     p->pid = nextpid++;
+    p->tid = (p->nexttid)++;
+  }
 
   release(&ptable.lock);
 
@@ -242,6 +244,8 @@ exit(void)
   if(curproc == initproc)
     panic("init exiting");
 
+  while(thread_join_all() != -1);
+
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
     if(curproc->ofile[fd]){
@@ -267,13 +271,15 @@ exit(void)
       if(p->state == ZOMBIE)
         wakeup1(initproc);
     }
-  }
+  } 
 
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
   panic("zombie exit");
 }
+
+
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
@@ -295,16 +301,17 @@ wait(void)
       if(p->state == ZOMBIE){
         // Found one.
         pid = p->pid;
+        if (p->mthread->tno == 1){
+          freevm(p->pgdir);
+        }
         kfree(p->kstack);
         p->kstack = 0;
-        if (p->tid == 0 || p->tno == 1)
-          freevm(p->pgdir);
-        p->tid = 0;
         p->pid = 0;
+        p->tid = 0;
+        p->nexttid = 0;
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        p->mthread = 0;
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -471,8 +478,9 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -562,15 +570,12 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
     return -1;
   }
   acquire(&ptable.lock);
-
-  if (curproc->tno == 1) 
-    curproc->tid = 1;
-  curproc->tno = curproc->tno + 1; 
+  (curproc->tno)++;
 
   // Set up thread state from proc.
   np->pgdir = curproc->pgdir;
   *np->tf = *curproc->tf;
-  np->mthread = curproc;
+  np->mthread = curproc->mthread;
 
   for(i = 0; i < NOFILE; i++)
     if(curproc->ofile[i])
@@ -598,6 +603,8 @@ thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg)
   if(copyout(np->pgdir, sp, &arg, sizeof(arg)) < 0)
     return -1;
   sp -= 4;
+  if(copyout(np->pgdir, sp, &thread_exit, sizeof(thread_exit)) < 0)
+    return -1;
   np->tf->esp = sp;
   np->tf->eip = (uint)start_routine;
 
@@ -632,10 +639,10 @@ thread_exit(void *retval)
   curproc->cwd = 0;
 
   acquire(&ptable.lock);
+  (curproc->mthread->tno)--;
 
   // Main process might be sleeping in thread_join().
   wakeup1(curproc->mthread);
-  curproc->mthread->tno = curproc->mthread->tno - 1;
 
   // Save the return value to thread_join().
   curproc->retval = retval;
@@ -672,15 +679,13 @@ int thread_join(thread_t thread, void **retval)
       found = 1;
       if(p->state == ZOMBIE){
         // Found the thread.
-
-        *retval = p->retval;
+        if (retval) *retval = p->retval;
         kfree(p->kstack);
         p->kstack = 0;
-        // freevm(p->pgdir);
         p->pid = 0;
         p->tid = 0;
+        p->nexttid = 0;
         p->parent = 0;
-        p->mthread = 0;
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
@@ -700,26 +705,66 @@ int thread_join(thread_t thread, void **retval)
   }
 }
 
-static void
-merge1(struct proc *curproc)
+int thread_join_all()
 {
   struct proc *p;
-  if (curproc->tid == 0)
-    return;
-  curproc->sz = curproc->mthread->sz;
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p == curproc) continue;
-    if(p->pid == curproc->pid){
-      p->mthread = curproc;
-      p->killed = 1;
+  int havekids, tid;
+  struct proc *curproc = myproc();
+
+  acquire(&ptable.lock);
+  for(;;){
+    havekids = 0;
+    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if (p == curproc || p->pid != curproc->pid)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        tid = p->tid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        if (p->pgdir != curproc->pgdir)  // Free only if it has executed.
+          freevm(p->pgdir);
+        p->pid = 0;
+        p->tid = 0;
+        p->nexttid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return tid;
+      }
     }
+
+    // No point waiting if we don't have any children.
+    if(!havekids){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
+  
 }
+
+
 
 void
 merge(struct proc *curproc)
 {
+  struct proc *p;
+
   acquire(&ptable.lock);
-  merge1(curproc);
+  if (curproc->tid == 1){
+    release(&ptable.lock);
+    return;
+  }
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p == curproc) continue;
+    if(p->pid == curproc->pid)
+      p->killed = 1;
+  }
   release(&ptable.lock);
 }

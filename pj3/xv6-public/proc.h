@@ -49,7 +49,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  int tno;                     // The number of threads
+  int tno;                     // The current number of threads
+  int nexttid;                 // Thread id the process will give to a new thread
   int tid;                     // Thread ID
   struct proc *mthread;        // process that has created this thread
   void *retval;                // Return value from thread to main process
