@@ -746,21 +746,13 @@ int thread_join_all()
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
     sleep(curproc, &ptable.lock);  //DOC: wait-sleep
   }
-  
 }
-
-
 
 void
 merge(struct proc *curproc)
 {
   struct proc *p;
-
   acquire(&ptable.lock);
-  if (curproc->tid == 1){
-    release(&ptable.lock);
-    return;
-  }
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p == curproc) continue;
     if(p->pid == curproc->pid)
