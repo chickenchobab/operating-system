@@ -79,9 +79,9 @@ kfree(char *v)
     kmem.refc[V2P(v) / PGSIZE]--;
   if (kmem.refc[V2P(v) / PGSIZE] == 0){
     memset(v, 1, PGSIZE);
-    kmem.fpc = kmem.fpc + 1;
     r->next = kmem.freelist;
     kmem.freelist = r;
+    kmem.fpc = kmem.fpc + 1;
   }  
 
   if(kmem.use_lock)

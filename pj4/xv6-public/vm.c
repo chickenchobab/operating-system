@@ -465,22 +465,12 @@ int
 sys_countptp(void)
 {
   pde_t *pgdir;
-  pte_t *pte;
-  uint a, i;
+  uint i;
   int ptpc;
   struct proc *curproc = myproc();
 
   pgdir = curproc->pgdir;
   ptpc = 1; // pgdir
-
-  for (a = 0; a < KERNBASE; a += PGSIZE){
-    pte = walkpgdir(pgdir, (char*)a, 0);
-    if(!pte)
-      a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
-    else if((*pte & PTE_P) != 0){
-      ptpc++;
-    }
-  }
 
   for(i = 0; i < NPDENTRIES; i++){
     if(pgdir[i] & PTE_P)

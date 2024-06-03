@@ -37,6 +37,10 @@ main(int argc, char* argv[])
   34:	89 c3                	mov    %eax,%ebx
   int numptp = countptp();
   36:	e8 90 03 00 00       	call   3cb <countptp>
+  // printf(1, "numfp: %d\n", numfp);
+  // printf(1, "numvp: %d\n", numvp);
+  // printf(1, "numpp: %d\n", numpp);
+  // printf(1, "numptp: %d\n", numptp);
 
   sbrk(4096);
   3b:	c7 04 24 00 10 00 00 	movl   $0x1000,(%esp)
@@ -56,6 +60,10 @@ main(int argc, char* argv[])
   5e:	89 45 e0             	mov    %eax,-0x20(%ebp)
   int numptpa = countptp();
   61:	e8 65 03 00 00       	call   3cb <countptp>
+  // printf(1, "numfpa: %d\n", numfpa);
+  // printf(1, "numvpa: %d\n", numvpa);
+  // printf(1, "numppa: %d\n", numppa);
+  // printf(1, "numptpa: %d\n", numptpa);
   
   printf(1, "ptp: %d %d\n", numptp, numptpa);
   66:	50                   	push   %eax

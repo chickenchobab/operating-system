@@ -11,6 +11,10 @@ main(int argc, char* argv[])
   int numvp = countvp();
   int numpp = countpp();
   int numptp = countptp();
+  // printf(1, "numfp: %d\n", numfp);
+  // printf(1, "numvp: %d\n", numvp);
+  // printf(1, "numpp: %d\n", numpp);
+  // printf(1, "numptp: %d\n", numptp);
 
   sbrk(4096);
 
@@ -18,6 +22,10 @@ main(int argc, char* argv[])
   int numvpa = countvp();
   int numppa = countpp();
   int numptpa = countptp();
+  // printf(1, "numfpa: %d\n", numfpa);
+  // printf(1, "numvpa: %d\n", numvpa);
+  // printf(1, "numppa: %d\n", numppa);
+  // printf(1, "numptpa: %d\n", numptpa);
   
   printf(1, "ptp: %d %d\n", numptp, numptpa);
 
