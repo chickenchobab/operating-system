@@ -1,2 +1,1 @@
-# HY_operating_system
-Operating System Projects
+한양대학교 운영체제 과제
